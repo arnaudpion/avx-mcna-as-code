@@ -356,7 +356,7 @@ variable "deploy_checkpoint_fw" {
 variable "checkpoint_user_data_file" {
   description = "Local file with User Data to bootstrap Checkpoint FW"
   type        = string
-  default     = "user_data_checkpoint.sh"
+  default     = "./User Data/user_data_checkpoint.sh"
 }
 
 variable "egress_transit_firenet" {
@@ -452,13 +452,13 @@ variable "aws_linux2_on_aws_ec2" {
 variable "aws_linux2_user_data_file" {
   description = "Name of the local file used for Linux Instances User Data in AWS"
   type        = string
-  default     = "user_data_aws_linux2.sh"
+  default     = "./User Data/user_data_aws_linux2.sh"
 }
 
 variable "ubuntu_user_data_file" {
   description = "Name of the local file used for Linux VM/Instances User Data"
   type        = string
-  default     = "user_data_ubuntu.sh"
+  default     = "./User Data/user_data_ubuntu.sh"
 }
 
 variable "tags" {
