@@ -512,7 +512,7 @@ resource "aviatrix_transit_external_device_conn" "onprem_conn" {
 
 # Create Aviatrix Segmentation Security Domain Associations for S2C
 resource "aviatrix_segmentation_security_domain_association" "s2c-cloud-segmentation" {
-  count = alltrue([var.deploy_aws, var.enable_s2c_on_aws]) ? 1 : 0
+  count = alltrue([var.deploy_aws, var.enable_s2c_on_aws, var.segmentation]) ? 1 : 0
 
   transit_gateway_name = var.enable_firenet_on_aws ? module.transit_firenet_aws[0].transit_gateway.gw_name : module.transit_aws[0].transit_gateway.gw_name
   security_domain_name = aviatrix_segmentation_security_domain.seg_dom[0].domain_name
@@ -522,7 +522,7 @@ resource "aviatrix_segmentation_security_domain_association" "s2c-cloud-segmenta
 }
 
 resource "aviatrix_segmentation_security_domain_association" "s2c-on-prem-segmentation" {
-  count = alltrue([var.deploy_aws, var.enable_s2c_on_aws]) ? 1 : 0
+  count = alltrue([var.deploy_aws, var.enable_s2c_on_aws, var.segmentation]) ? 1 : 0
 
   transit_gateway_name = module.s2c_transit_aws[0].transit_gateway.gw_name
   security_domain_name = aviatrix_segmentation_security_domain.seg_dom[0].domain_name
