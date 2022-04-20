@@ -68,21 +68,21 @@ data "aws_ami" "aws-linux2_s2c" {
 }
 
 # Aviatrix FireNet Vendor Integration Data Source
-data "aviatrix_firenet_vendor_integration" "aws_fw_integration" {
-  count = var.deploy_aws ? (var.enable_firenet_on_aws ? (var.use_aws_gwlb ? 0 : (var.transit_ha ? 2 : 1)) : 0) : 0
+/*data "aviatrix_firenet_vendor_integration" "aws_fw_integration" {
+  count = var.deploy_aws ? (var.deploy_firenet_on_aws ? (var.use_aws_gwlb ? 0 : (var.transit_ha ? 2 : 1)) : 0) : 0
 
-  vpc_id        = module.transit_firenet_aws[0].vpc.vpc_id
-  instance_id   = module.transit_firenet_aws[0].aviatrix_firewall_instance[count.index].instance_id
+  vpc_id        = module.transit_aws[0].vpc.vpc_id
+  instance_id   = module.firenet_aws[0].aviatrix_firewall_instance[0].instance_id
   vendor_type   = var.deploy_checkpoint_fw ? "Generic" : "Palo Alto Networks VM-Series"
-  public_ip     = module.transit_firenet_aws[0].aviatrix_firewall_instance[count.index].public_ip
+  public_ip     = module.firenet_aws[0].aviatrix_firewall_instance[0].public_ip
   username      = var.fw_username
   password      = var.fw_password
-  firewall_name = module.transit_firenet_aws[0].aviatrix_firewall_instance[count.index].firewall_name
+  firewall_name = module.firenet_aws[0].aviatrix_firewall_instance[0].firewall_name
   save          = true
 
   depends_on = [time_sleep.wait_for_fw_to_come_up]
-}
-
+}*/
+/*
 data "aviatrix_firenet_vendor_integration" "azure_fw_integration" {
   count = var.enable_firenet_on_azure ? (var.transit_ha ? 2 : 1) : 0
 
@@ -100,6 +100,7 @@ data "aviatrix_firenet_vendor_integration" "azure_fw_integration" {
     time_sleep.wait_for_fw_to_come_up_in_azure
   ]
 }
+*/
 
 # Data template Bash bootstrapping file for Azure VMs
 data "template_file" "linux_vm_cloud_init" {

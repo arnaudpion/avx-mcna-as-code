@@ -323,6 +323,12 @@ variable "enable_firenet_on_aws" {
   default     = false
 }
 
+variable "deploy_firenet_on_aws" {
+  description = "Deploy Transit FireNet on AWS"
+  type        = bool
+  default     = false
+}
+
 variable "use_aws_gwlb" {
   description = "Enable GWLB for Transit FireNet on AWS"
   type        = bool
@@ -330,19 +336,19 @@ variable "use_aws_gwlb" {
 }
 
 variable "enable_firenet_on_azure" {
-  description = "Enable Transit FireNet on Azure"
-  type        = bool
-  default     = false
-}
-
-variable "prepare_firenet_on_azure" {
   description = "Make sure Transit FireNet is enabled on Azure Transit (VNet/GW ready for a FW to be deployed)"
   type        = bool
   default     = false
 }
 
-variable "enable_firenet_on_gcp" {
-  description = "Enable Transit FireNet on GCP"
+variable "deploy_firenet_on_azure" {
+  description = "Deploy Transit FireNet on Azure"
+  type        = bool
+  default     = false
+}
+
+variable "deploy_firenet_on_gcp" {
+  description = "Deploy Transit FireNet on GCP"
   type        = bool
   default     = false
 }

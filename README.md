@@ -34,6 +34,14 @@ Adjusting the variables allows for various customization :
  * Existing SSH public-private key pair for Linux VMs in Azure : default key name '<i>aviatrix-lab-azure</i>', located in ~/.ssh/ (MacOS) - for more information, please refer to https://docs.microsoft.com/en-us/azure/virtual-machines/linux/create-ssh-keys-detailed
  * Please make sure you select the Aviatrix provider version compatible with your Aviatrix Controller release : https://registry.terraform.io/providers/AviatrixSystems/aviatrix/latest/docs/guides/release-compatibility
 
+## Tested versions
+ * Aviatrix Controller release 6.6.5545
+ * Terraform Aviatrix provider 2.21.2
+
+ ## Known caveats
+ * FireNet is only available on AWS, with Palo-Alto VM-Series
+ * FireNet support on Azure and GCP, and with other NGFW vendors, is planned in the future
+
 ## Additional comments
 * The content of the "<i>user_data*.sh</i>" files is static. If the "<i>hostnum</i>" variables are changed, or if you add more Spoke VPCs/VNets, you will have to modify the <i>/etc/hosts</i> data in these files for the DNS lookup to work as intended
 * To deploy FireNet, first you need to subscribe to the right NGFW offer in the target CSP Marketplace. You'll also need to update some variables and deal with the bootstrap. You can refer to https://docs.aviatrix.com/HowTos/bootstrap_example.html / https://docs.aviatrix.com/HowTos/pan_bootstrap_example_azure.html / https://docs.aviatrix.com/HowTos/checkpoint_bootstrap_azure.html
