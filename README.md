@@ -15,7 +15,7 @@ Adjusting the variables allows for various customization :
 ## Architecture diagram (default values) :
 <img width="877" alt="image" src="https://user-images.githubusercontent.com/16352524/161223956-20c8643c-c9ab-49d9-90e3-4308faac99f0.png">
 
-## Architecture diagram with segmentation domains :
+## Architecture diagram with network domains :
 <img width="874" alt="image" src="https://user-images.githubusercontent.com/16352524/161223995-9086adfa-03de-412f-9765-dae946d701ab.png">
 
 ## Prerequisites
