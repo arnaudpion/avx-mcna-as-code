@@ -31,6 +31,9 @@ override.tf.json
 # .hcl files
 *.hcl
 
+# Backend information
+backend.tf
+
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc

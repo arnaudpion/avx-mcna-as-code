@@ -35,8 +35,8 @@ Adjusting the variables allows for various customization :
  * Please make sure you select the Aviatrix provider version compatible with your Aviatrix Controller release : https://registry.terraform.io/providers/AviatrixSystems/aviatrix/latest/docs/guides/release-compatibility
 
 ## Tested versions
- * Aviatrix Controller release 6.6.5545
- * Terraform Aviatrix provider 2.21.2
+ * Aviatrix Controller release 6.7.1186
+ * Terraform Aviatrix provider 2.22.0
 
  ## Known caveats
  * FireNet is only available on AWS, with Palo-Alto VM-Series

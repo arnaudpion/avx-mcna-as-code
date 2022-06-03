@@ -1,7 +1,7 @@
 # Transit Gateways in AWS
 module "transit_aws" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "2.0.0"
+  version = "2.1.1"
 
   count = var.deploy_aws ? 1 : 0
 
@@ -22,7 +22,7 @@ module "transit_aws" {
 # FireNet in AWS
 module "firenet_aws" {
   source  = "terraform-aviatrix-modules/mc-firenet/aviatrix"
-  version = "1.0.0"
+  version = "1.0.2"
 
   count = var.deploy_aws ? (var.deploy_firenet_on_aws ? 1 : 0) : 0
 
@@ -41,23 +41,23 @@ module "firenet_aws" {
 # Spoke Gateways in AWS. Connect to Transit Gateways in AWS
 module "spoke_aws" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "1.1.2"
+  version = "1.2.1"
 
   count = var.deploy_aws ? length(var.spoke_name_list) : 0
 
-  cloud           = "AWS"
-  name            = "${var.customer_prefix}${var.aws_prefix}-${var.aws_region_short}-${var.spoke_name_list[count.index]}-spoke"
-  cidr            = var.aws_spoke_cidr_list[count.index]
-  region          = var.aws_region
-  account         = var.aws_account_name
-  instance_size   = var.aws_spoke_gateway_size
-  transit_gw      = module.transit_aws[0].transit_gateway.gw_name
-  ha_gw           = count.index == 0 ? anytrue([var.spoke_ha, var.spoke_ha_first_vpc_only]) : var.spoke_ha
-  insane_mode     = var.hpe
-  single_ip_snat  = var.source_nat_on_spoke
-  single_az_ha    = false
-  security_domain = var.segmentation ? aviatrix_segmentation_security_domain.seg_dom[count.index].domain_name : ""
-  tags            = var.tags
+  cloud          = "AWS"
+  name           = "${var.customer_prefix}${var.aws_prefix}-${var.aws_region_short}-${var.spoke_name_list[count.index]}-spoke"
+  cidr           = var.aws_spoke_cidr_list[count.index]
+  region         = var.aws_region
+  account        = var.aws_account_name
+  instance_size  = var.aws_spoke_gateway_size
+  transit_gw     = module.transit_aws[0].transit_gateway.gw_name
+  ha_gw          = count.index == 0 ? anytrue([var.spoke_ha, var.spoke_ha_first_vpc_only]) : var.spoke_ha
+  insane_mode    = var.hpe
+  single_ip_snat = var.source_nat_on_spoke
+  single_az_ha   = false
+  network_domain = var.segmentation ? aviatrix_segmentation_network_domain.seg_dom[count.index].domain_name : ""
+  tags           = var.tags
 }
 
 # Security Groups for EC2 Instances in Spoke VPCs in AWS
@@ -99,9 +99,10 @@ resource "aws_instance" "jump-host" {
   vpc_security_group_ids      = [aws_security_group.test_instance_sg[local.aws_jumphost_spoke_vpc].id]
   subnet_id                   = module.spoke_aws[local.aws_jumphost_spoke_vpc].vpc.public_subnets[0].subnet_id
   associate_public_ip_address = true
-  private_ip                  = anytrue([cidrhost(module.spoke_aws[local.aws_jumphost_spoke_vpc].vpc.public_subnets[0].cidr, local.aws_test_ec2_jumphostnum) == module.spoke_aws[local.aws_jumphost_spoke_vpc].spoke_gateway.private_ip, cidrhost(module.spoke_aws[local.aws_jumphost_spoke_vpc].vpc.public_subnets[0].cidr, local.aws_test_ec2_jumphostnum) == module.spoke_aws[local.aws_jumphost_spoke_vpc].spoke_gateway.ha_private_ip]) ? cidrhost(module.spoke_aws[local.aws_jumphost_spoke_vpc].vpc.public_subnets[0].cidr, local.aws_test_ec2_jumphostnum_bis) : cidrhost(module.spoke_aws[local.aws_jumphost_spoke_vpc].vpc.public_subnets[0].cidr, local.aws_test_ec2_jumphostnum)
-  user_data                   = file(local.aws_user_data_file)
-  tags                        = merge(var.tags, { Name = "${var.customer_prefix}${var.aws_prefix}-${var.aws_region_short}-${var.spoke_name_list[local.aws_jumphost_spoke_vpc]}-jump-vm" })
+  #private_ip                  = anytrue([cidrhost(module.spoke_aws[local.aws_jumphost_spoke_vpc].vpc.public_subnets[0].cidr, local.aws_test_ec2_jumphostnum) == module.spoke_aws[local.aws_jumphost_spoke_vpc].spoke_gateway.private_ip, cidrhost(module.spoke_aws[local.aws_jumphost_spoke_vpc].vpc.public_subnets[0].cidr, local.aws_test_ec2_jumphostnum) == module.spoke_aws[local.aws_jumphost_spoke_vpc].spoke_gateway.ha_private_ip]) ? cidrhost(module.spoke_aws[local.aws_jumphost_spoke_vpc].vpc.public_subnets[0].cidr, local.aws_test_ec2_jumphostnum_bis) : cidrhost(module.spoke_aws[local.aws_jumphost_spoke_vpc].vpc.public_subnets[0].cidr, local.aws_test_ec2_jumphostnum)
+  private_ip = cidrhost(module.spoke_aws[local.aws_jumphost_spoke_vpc].vpc.public_subnets[0].cidr, local.aws_test_ec2_jumphostnum) == module.spoke_aws[local.aws_jumphost_spoke_vpc].spoke_gateway.private_ip ? cidrhost(module.spoke_aws[local.aws_jumphost_spoke_vpc].vpc.public_subnets[0].cidr, local.aws_test_ec2_jumphostnum_bis) : cidrhost(module.spoke_aws[local.aws_jumphost_spoke_vpc].vpc.public_subnets[0].cidr, local.aws_test_ec2_jumphostnum)
+  user_data  = file(local.aws_user_data_file)
+  tags       = merge(var.tags, { Name = "${var.customer_prefix}${var.aws_prefix}-${var.aws_region_short}-${var.spoke_name_list[local.aws_jumphost_spoke_vpc]}-jump-vm" })
 }
 
 resource "aws_instance" "spoke_aws_ec2" {
@@ -149,7 +150,7 @@ module "transit_firenet_azure" {
 # Transit Gateways in Azure
 module "transit_azure" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "2.0.0"
+  version = "2.1.1"
 
   count = var.deploy_azure ? 1 : 0
 
@@ -171,23 +172,23 @@ module "transit_azure" {
 # Spoke Gateways in Azure. Connect to Transit Gateways in Azure
 module "spoke_azure" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "1.1.2"
+  version = "1.2.1"
 
   count = var.deploy_azure ? length(var.spoke_name_list) : 0
 
-  cloud           = "Azure"
-  name            = "${var.customer_prefix}${var.azure_prefix}-${var.azure_region_short}-${var.spoke_name_list[count.index]}-spoke"
-  cidr            = var.azure_spoke_cidr_list[count.index]
-  region          = var.azure_region
-  account         = var.azure_account_name
-  resource_group  = var.azure_resource_group
-  instance_size   = var.azure_spoke_gateway_size
-  transit_gw      = module.transit_azure[0].transit_gateway.gw_name
-  ha_gw           = count.index == 0 ? anytrue([var.spoke_ha, var.spoke_ha_first_vpc_only]) : var.spoke_ha
-  insane_mode     = var.hpe
-  single_az_ha    = false
-  security_domain = var.segmentation ? aviatrix_segmentation_security_domain.seg_dom[count.index].domain_name : ""
-  tags            = var.tags
+  cloud          = "Azure"
+  name           = "${var.customer_prefix}${var.azure_prefix}-${var.azure_region_short}-${var.spoke_name_list[count.index]}-spoke"
+  cidr           = var.azure_spoke_cidr_list[count.index]
+  region         = var.azure_region
+  account        = var.azure_account_name
+  resource_group = var.azure_resource_group
+  instance_size  = var.azure_spoke_gateway_size
+  transit_gw     = module.transit_azure[0].transit_gateway.gw_name
+  ha_gw          = count.index == 0 ? anytrue([var.spoke_ha, var.spoke_ha_first_vpc_only]) : var.spoke_ha
+  insane_mode    = var.hpe
+  single_az_ha   = false
+  network_domain = var.segmentation ? aviatrix_segmentation_network_domain.seg_dom[count.index].domain_name : ""
+  tags           = var.tags
 }
 
 
@@ -304,14 +305,14 @@ resource "azurerm_linux_virtual_machine" "spoke_azure_vm" {
     version   = "latest"
   }
 
-depends_on = [azurerm_network_interface.spoke_azure_nic]
+  depends_on = [azurerm_network_interface.spoke_azure_nic]
 
 }
 
 # Transit Gateways in GCP
 module "transit_gcp" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "2.0.0"
+  version = "2.1.1"
 
   count = var.deploy_gcp ? 1 : 0
 
@@ -330,21 +331,21 @@ module "transit_gcp" {
 # Spoke Gateways in GCP. Connect to Transit Gateways in GCP
 module "spoke_gcp" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "1.1.2"
+  version = "1.2.1"
 
   count = var.deploy_gcp ? length(var.spoke_name_list) : 0
 
-  cloud           = "GCP"
-  name            = "${var.customer_prefix}${var.gcp_prefix}-${var.gcp_region_short}-${var.spoke_name_list[count.index]}-spoke"
-  cidr            = var.gcp_spoke_cidr_list[count.index]
-  region          = var.gcp_region
-  account         = var.gcp_account_name
-  instance_size   = var.gcp_spoke_gateway_size
-  transit_gw      = module.transit_gcp[0].transit_gateway.gw_name
-  ha_gw           = count.index == 0 ? anytrue([var.spoke_ha, var.spoke_ha_first_vpc_only]) : var.spoke_ha
-  insane_mode     = var.hpe
-  single_az_ha    = false
-  security_domain = var.segmentation ? aviatrix_segmentation_security_domain.seg_dom[count.index].domain_name : ""
+  cloud          = "GCP"
+  name           = "${var.customer_prefix}${var.gcp_prefix}-${var.gcp_region_short}-${var.spoke_name_list[count.index]}-spoke"
+  cidr           = var.gcp_spoke_cidr_list[count.index]
+  region         = var.gcp_region
+  account        = var.gcp_account_name
+  instance_size  = var.gcp_spoke_gateway_size
+  transit_gw     = module.transit_gcp[0].transit_gateway.gw_name
+  ha_gw          = count.index == 0 ? anytrue([var.spoke_ha, var.spoke_ha_first_vpc_only]) : var.spoke_ha
+  insane_mode    = var.hpe
+  single_az_ha   = false
+  network_domain = var.segmentation ? aviatrix_segmentation_network_domain.seg_dom[count.index].domain_name : ""
 }
 
 # Google Compute Instances used as test instances
@@ -407,7 +408,7 @@ resource "time_sleep" "wait_for_fw_to_come_up_in_azure" {
 # Connect Transit Gateways between CSPs (Transit Peerings)
 module "multi_cloud_transit_peering" {
   source  = "terraform-aviatrix-modules/mc-transit-peering/aviatrix"
-  version = "1.0.5"
+  version = "1.0.6"
 
   transit_gateways = compact([
     var.deploy_aws ? module.transit_aws[0].transit_gateway.gw_name : "",
@@ -420,25 +421,25 @@ module "multi_cloud_transit_peering" {
   ]
 }
 
-# Create Aviatrix Segmentation Security Domains
-resource "aviatrix_segmentation_security_domain" "seg_dom" {
-  count = length(var.segmentation_domain_list)
+# Create Aviatrix Segmentation Network Domains
+resource "aviatrix_segmentation_network_domain" "seg_dom" {
+  count = length(var.network_domain_list)
 
-  domain_name = var.segmentation_domain_list[count.index]
+  domain_name = var.network_domain_list[count.index]
 }
 
-# Create Aviatrix Segmentation Security Domain Connection Policies : Any-to-Any
-resource "aviatrix_segmentation_security_domain_connection_policy" "seg_dom_con_pol" {
-  count = length(var.segmentation_domain_list)
+# Create Aviatrix Segmentation Network Domain Connection Policies : Any-to-Any
+resource "aviatrix_segmentation_network_domain_connection_policy" "seg_dom_con_pol" {
+  count = length(var.network_domain_list)
 
-  domain_name_1 = aviatrix_segmentation_security_domain.seg_dom[count.index].domain_name
-  domain_name_2 = count.index == length(var.segmentation_domain_list) - 1 ? aviatrix_segmentation_security_domain.seg_dom[0].domain_name : aviatrix_segmentation_security_domain.seg_dom[count.index + 1].domain_name
+  domain_name_1 = aviatrix_segmentation_network_domain.seg_dom[count.index].domain_name
+  domain_name_2 = count.index == length(var.network_domain_list) - 1 ? aviatrix_segmentation_network_domain.seg_dom[0].domain_name : aviatrix_segmentation_network_domain.seg_dom[count.index + 1].domain_name
 }
 
 # S2C Transit Gateways in AWS
 module "s2c_transit_aws" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "2.0.0"
+  version = "2.1.1"
 
   count = alltrue([var.deploy_aws, var.enable_s2c_on_aws]) ? 1 : 0
 
@@ -505,22 +506,22 @@ resource "aviatrix_transit_external_device_conn" "onprem_conn" {
   backup_remote_tunnel_cidr = var.transit_ha ? "169.254.1.1/30,169.254.11.1/30" : null
 }
 
-# Create Aviatrix Segmentation Security Domain Associations for S2C
-resource "aviatrix_segmentation_security_domain_association" "s2c-cloud-segmentation" {
+# Create Aviatrix Segmentation Network Domain Associations for S2C
+resource "aviatrix_segmentation_network_domain_association" "s2c-cloud-segmentation" {
   count = alltrue([var.deploy_aws, var.enable_s2c_on_aws, var.segmentation]) ? 1 : 0
 
   transit_gateway_name = module.transit_aws[0].transit_gateway.gw_name
-  security_domain_name = aviatrix_segmentation_security_domain.seg_dom[0].domain_name
+  network_domain_name  = aviatrix_segmentation_network_domain.seg_dom[0].domain_name
   attachment_name      = "to-on-prem"
 
   depends_on = [aviatrix_transit_external_device_conn.cloud_conn]
 }
 
-resource "aviatrix_segmentation_security_domain_association" "s2c-on-prem-segmentation" {
+resource "aviatrix_segmentation_network_domain_association" "s2c-on-prem-segmentation" {
   count = alltrue([var.deploy_aws, var.enable_s2c_on_aws, var.segmentation]) ? 1 : 0
 
   transit_gateway_name = module.s2c_transit_aws[0].transit_gateway.gw_name
-  security_domain_name = aviatrix_segmentation_security_domain.seg_dom[0].domain_name
+  network_domain_name  = aviatrix_segmentation_network_domain.seg_dom[0].domain_name
   attachment_name      = "to-the-cloud"
 
   depends_on = [aviatrix_transit_external_device_conn.onprem_conn]
@@ -566,7 +567,8 @@ resource "aws_instance" "s2c_aws_ec2" {
   key_name               = var.aws_key_name
   vpc_security_group_ids = [aws_security_group.s2c_instance_sg[count.index].id]
   subnet_id              = module.s2c_transit_aws[count.index].vpc.public_subnets[0].subnet_id
-  private_ip             = cidrhost(module.s2c_transit_aws[count.index].vpc.public_subnets[0].cidr, var.aws_test_ec2_hostnum)
-  user_data              = file(var.aws_linux2_user_data_file)
-  tags                   = merge(var.tags, { Name = "${var.customer_prefix}onprem-vm" })
+  #private_ip             = anytrue([cidrhost(module.s2c_transit_aws[0].vpc.public_subnets[0].cidr, var.aws_test_ec2_hostnum) == module.s2c_transit_aws[0].transit_gateway.private_ip, cidrhost(module.s2c_transit_aws[0].vpc.public_subnets[0].cidr, var.aws_test_ec2_hostnum) == module.s2c_transit_aws[0].transit_gateway.ha_private_ip]) ? cidrhost(module.s2c_transit_aws[0].vpc.public_subnets[0].cidr, var.aws_test_ec2_hostnum + 5) : cidrhost(module.s2c_transit_aws[0].vpc.public_subnets[0].cidr, var.aws_test_ec2_hostnum)
+  private_ip = cidrhost(module.s2c_transit_aws[0].vpc.public_subnets[0].cidr, var.aws_test_ec2_hostnum) == module.s2c_transit_aws[0].transit_gateway.private_ip ? cidrhost(module.s2c_transit_aws[0].vpc.public_subnets[0].cidr, var.aws_test_ec2_hostnum + 5) : cidrhost(module.s2c_transit_aws[0].vpc.public_subnets[0].cidr, var.aws_test_ec2_hostnum)
+  user_data  = file(var.aws_linux2_user_data_file)
+  tags       = merge(var.tags, { Name = "${var.customer_prefix}onprem-vm" })
 }

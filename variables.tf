@@ -425,8 +425,8 @@ variable "segmentation" {
   default     = true
 }
 
-variable "segmentation_domain_list" {
-  description = "Segmentation Domains for the Spoke VPC/VNets"
+variable "network_domain_list" {
+  description = "Network Domains for the Spoke VPC/VNets"
   type        = list(string)
   default     = ["prod", "dev", "shared"]
 }
