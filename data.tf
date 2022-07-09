@@ -68,7 +68,7 @@ data "aws_ami" "aws-linux2_s2c" {
 }
 
 # Aviatrix FireNet Vendor Integration Data Source
-/*data "aviatrix_firenet_vendor_integration" "aws_fw_integration" {
+data "aviatrix_firenet_vendor_integration" "aws_fw_integration" {
   count = var.deploy_aws ? (var.deploy_firenet_on_aws ? (var.use_aws_gwlb ? 0 : (var.transit_ha ? 2 : 1)) : 0) : 0
 
   vpc_id        = module.transit_aws[0].vpc.vpc_id
@@ -81,7 +81,8 @@ data "aws_ami" "aws-linux2_s2c" {
   save          = true
 
   depends_on = [time_sleep.wait_for_fw_to_come_up]
-}*/
+}
+
 /*
 data "aviatrix_firenet_vendor_integration" "azure_fw_integration" {
   count = var.enable_firenet_on_azure ? (var.transit_ha ? 2 : 1) : 0

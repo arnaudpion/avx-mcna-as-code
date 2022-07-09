@@ -1,7 +1,7 @@
 # Transit Gateways in AWS
 module "transit_aws" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "2.1.1"
+  version = "2.1.4"
 
   count = var.deploy_aws ? 1 : 0
 
@@ -22,7 +22,7 @@ module "transit_aws" {
 # FireNet in AWS
 module "firenet_aws" {
   source  = "terraform-aviatrix-modules/mc-firenet/aviatrix"
-  version = "1.0.2"
+  version = "1.1.1"
 
   count = var.deploy_aws ? (var.deploy_firenet_on_aws ? 1 : 0) : 0
 
@@ -41,7 +41,7 @@ module "firenet_aws" {
 # Spoke Gateways in AWS. Connect to Transit Gateways in AWS
 module "spoke_aws" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "1.2.1"
+  version = "1.2.3"
 
   count = var.deploy_aws ? length(var.spoke_name_list) : 0
 
@@ -150,7 +150,7 @@ module "transit_firenet_azure" {
 # Transit Gateways in Azure
 module "transit_azure" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "2.1.1"
+  version = "2.1.4"
 
   count = var.deploy_azure ? 1 : 0
 
@@ -172,7 +172,7 @@ module "transit_azure" {
 # Spoke Gateways in Azure. Connect to Transit Gateways in Azure
 module "spoke_azure" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "1.2.1"
+  version = "1.2.3"
 
   count = var.deploy_azure ? length(var.spoke_name_list) : 0
 
@@ -312,7 +312,7 @@ resource "azurerm_linux_virtual_machine" "spoke_azure_vm" {
 # Transit Gateways in GCP
 module "transit_gcp" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "2.1.1"
+  version = "2.1.4"
 
   count = var.deploy_gcp ? 1 : 0
 
@@ -331,7 +331,7 @@ module "transit_gcp" {
 # Spoke Gateways in GCP. Connect to Transit Gateways in GCP
 module "spoke_gcp" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "1.2.1"
+  version = "1.2.3"
 
   count = var.deploy_gcp ? length(var.spoke_name_list) : 0
 
@@ -388,7 +388,7 @@ resource "google_compute_firewall" "lab-traffic" {
 }
 
 resource "time_sleep" "wait_for_fw_to_come_up" {
-  count = anytrue([alltrue([var.deploy_firenet_on_aws, !var.use_aws_gwlb]), var.deploy_firenet_on_azure, var.deploy_firenet_on_gcp]) ? 1 : 0
+  count = anytrue([alltrue([var.deploy_aws, var.deploy_firenet_on_aws, !var.use_aws_gwlb]), var.deploy_firenet_on_azure, var.deploy_firenet_on_gcp]) ? 1 : 0
   depends_on = [
     module.firenet_aws,
     #module.transit_firenet_azure
@@ -407,8 +407,9 @@ resource "time_sleep" "wait_for_fw_to_come_up_in_azure" {
 
 # Connect Transit Gateways between CSPs (Transit Peerings)
 module "multi_cloud_transit_peering" {
-  source  = "terraform-aviatrix-modules/mc-transit-peering/aviatrix"
-  version = "1.0.6"
+  #source  = "terraform-aviatrix-modules/mc-transit-peering/aviatrix"
+  #version = "1.0.6"
+  source = "git::https://github.com/terraform-aviatrix-modules/terraform-aviatrix-mc-transit-peering"
 
   transit_gateways = compact([
     var.deploy_aws ? module.transit_aws[0].transit_gateway.gw_name : "",
@@ -439,7 +440,7 @@ resource "aviatrix_segmentation_network_domain_connection_policy" "seg_dom_con_p
 # S2C Transit Gateways in AWS
 module "s2c_transit_aws" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "2.1.1"
+  version = "2.1.4"
 
   count = alltrue([var.deploy_aws, var.enable_s2c_on_aws]) ? 1 : 0
 
