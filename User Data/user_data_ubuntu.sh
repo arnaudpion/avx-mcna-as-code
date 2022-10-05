@@ -8,7 +8,7 @@ sudo systemctl start apache2.service
 sudo systemctl enable apache2.service
 sudo echo “AVIATRIX ROCKS ! Hello from $(hostname -f)” > /var/www/html/index.html
 
-echo -e "10.10.1.5  aws-prod\n10.10.2.5  aws-dev\n10.10.3.5  aws-shared\n10.10.1.45  jump-prod\n10.10.2.45  jump-dev\n10.10.3.45  jump-shared\n10.20.1.45  azure-prod\n10.20.2.45  azure-dev\n10.20.3.45  azure-shared\n10.30.1.5  gcp-prod\n10.30.2.5  gcp-dev\n10.30.3.5  gcp-shared\n172.16.0.5  on-prem" >> /etc/hosts
+echo -e "10.10.1.5  aws-prod\n10.10.2.5  aws-dev\n10.10.3.5  aws-shared\n10.10.1.45  jump-prod\n10.10.2.45  jump-dev\n10.10.3.45  jump-shared\n10.20.1.45  azure-prod\n10.20.2.45  azure-dev\n10.20.3.45  azure-shared\n10.30.1.5  gcp-prod\n10.30.2.5  gcp-dev\n10.30.3.5  gcp-shared\n172.16.0.5  on-prem\n192.168.0.5  aws-add" >> /etc/hosts
 
 cat <<SCR >>/home/ec2-user/cron-ping.sh
 #!/bin/sh

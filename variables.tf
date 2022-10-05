@@ -105,6 +105,12 @@ variable "aws_bootstrap_bucket" {
   default     = ""
 }
 
+variable "deploy_ready_to_connect_vpc" {
+  description = "Deploy an additional VPC in AWS without Spoke GW"
+  type        = bool
+  default     = false
+}
+
 variable "deploy_azure" {
   description = "Deploy Azure as part of the Multi-Cloud Transit"
   type        = bool

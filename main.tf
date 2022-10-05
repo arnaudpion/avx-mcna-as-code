@@ -1,7 +1,7 @@
 # Transit Gateways in AWS
 module "transit_aws" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "2.1.4"
+  version = "2.2.1"
 
   count = var.deploy_aws ? 1 : 0
 
@@ -22,7 +22,7 @@ module "transit_aws" {
 # FireNet in AWS
 module "firenet_aws" {
   source  = "terraform-aviatrix-modules/mc-firenet/aviatrix"
-  version = "1.1.1"
+  version = "1.2.0"
 
   count = var.deploy_aws ? (var.deploy_firenet_on_aws ? 1 : 0) : 0
 
@@ -33,15 +33,15 @@ module "firenet_aws" {
   firewall_image_version  = "10.1.4"
   bootstrap_bucket_name_1 = var.aws_bootstrap_bucket
   iam_role_1              = var.aws_iam_bootstrap_role
-  use_gwlb                = var.use_aws_gwlb
-  egress_enabled          = var.egress_transit_firenet
-  tags                    = var.tags
+  #use_gwlb                = var.use_aws_gwlb
+  egress_enabled = var.egress_transit_firenet
+  tags           = var.tags
 }
 
 # Spoke Gateways in AWS. Connect to Transit Gateways in AWS
 module "spoke_aws" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "1.2.3"
+  version = "1.3.1"
 
   count = var.deploy_aws ? length(var.spoke_name_list) : 0
 
@@ -117,6 +117,55 @@ resource "aws_instance" "spoke_aws_ec2" {
   user_data              = file(local.aws_user_data_file)
   tags                   = merge(var.tags, { Name = "${var.customer_prefix}${var.aws_prefix}-${var.aws_region_short}-${var.spoke_name_list[count.index]}-vm" })
 }
+
+
+# Additional, Ready to Connect Spoke VPC in AWS
+resource "aviatrix_vpc" "aws_additional_vpc" {
+  cloud_type           = 1
+  account_name         = var.aws_account_name
+  region               = var.aws_region
+  name                 = "${var.customer_prefix}${var.aws_prefix}-${var.aws_region_short}-add-spoke"
+  cidr                 = "192.168.0.0/24"
+  aviatrix_transit_vpc = false
+  aviatrix_firenet_vpc = false
+}
+
+# Security Groups for EC2 Instances in Additional Spoke VPC in AWS
+resource "aws_security_group" "additional_test_instance_sg" {
+  count = var.deploy_aws ? var.deploy_ready_to_connect_vpc ? 1 : 0 : 0
+
+  name        = "${var.customer_prefix}add-sg"
+  description = "Allow traffic from Private IP addresses"
+  vpc_id      = aviatrix_vpc.aws_additional_vpc.vpc_id
+
+  ingress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = -1
+    cidr_blocks = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = -1
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  tags = merge(var.tags, { Name = "${var.customer_prefix}add-sg" })
+}
+
+resource "aws_instance" "additional_spoke_aws_ec2" {
+  count = var.deploy_aws ? var.deploy_ready_to_connect_vpc ? 1 : 0 : 0
+
+  ami                    = var.aws_linux2_on_aws_ec2 ? data.aws_ami.aws-linux2.id : data.aws_ami.aws-ubuntu.id
+  instance_type          = var.aws_test_ec2_size
+  key_name               = var.aws_key_name
+  vpc_security_group_ids = [aws_security_group.additional_test_instance_sg[0].id]
+  subnet_id              = aviatrix_vpc.aws_additional_vpc.private_subnets[0].subnet_id
+  private_ip             = cidrhost(aviatrix_vpc.aws_additional_vpc.private_subnets[0].cidr, var.aws_test_ec2_hostnum)
+  user_data              = file(local.aws_user_data_file)
+  tags                   = merge(var.tags, { Name = "${var.customer_prefix}${var.aws_prefix}-add-vm" })
+}
+
 /*
 # Transit FireNet in Azure
 module "transit_firenet_azure" {
@@ -150,7 +199,7 @@ module "transit_firenet_azure" {
 # Transit Gateways in Azure
 module "transit_azure" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "2.1.4"
+  version = "2.2.1"
 
   count = var.deploy_azure ? 1 : 0
 
@@ -172,7 +221,7 @@ module "transit_azure" {
 # Spoke Gateways in Azure. Connect to Transit Gateways in Azure
 module "spoke_azure" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "1.2.3"
+  version = "1.3.1"
 
   count = var.deploy_azure ? length(var.spoke_name_list) : 0
 
@@ -312,7 +361,7 @@ resource "azurerm_linux_virtual_machine" "spoke_azure_vm" {
 # Transit Gateways in GCP
 module "transit_gcp" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "2.1.4"
+  version = "2.2.1"
 
   count = var.deploy_gcp ? 1 : 0
 
@@ -331,7 +380,7 @@ module "transit_gcp" {
 # Spoke Gateways in GCP. Connect to Transit Gateways in GCP
 module "spoke_gcp" {
   source  = "terraform-aviatrix-modules/mc-spoke/aviatrix"
-  version = "1.2.3"
+  version = "1.3.1"
 
   count = var.deploy_gcp ? length(var.spoke_name_list) : 0
 
@@ -408,8 +457,8 @@ resource "time_sleep" "wait_for_fw_to_come_up_in_azure" {
 # Connect Transit Gateways between CSPs (Transit Peerings)
 module "multi_cloud_transit_peering" {
   #source  = "terraform-aviatrix-modules/mc-transit-peering/aviatrix"
-  #version = "1.0.6"
-  source = "git::https://github.com/terraform-aviatrix-modules/terraform-aviatrix-mc-transit-peering"
+  #version = "1.0.7"
+  source = "git::https://github.com/arnaudpion/terraform-aviatrix-mc-transit-peering"
 
   transit_gateways = compact([
     var.deploy_aws ? module.transit_aws[0].transit_gateway.gw_name : "",
@@ -440,7 +489,7 @@ resource "aviatrix_segmentation_network_domain_connection_policy" "seg_dom_con_p
 # S2C Transit Gateways in AWS
 module "s2c_transit_aws" {
   source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
-  version = "2.1.4"
+  version = "2.2.1"
 
   count = alltrue([var.deploy_aws, var.enable_s2c_on_aws]) ? 1 : 0
 
