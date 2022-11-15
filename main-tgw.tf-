@@ -1,0 +1,290 @@
+module "tgw" {
+  source  = "terraform-aws-modules/transit-gateway/aws"
+  version = "~> 2.0"
+
+  name        = "aws-tgw"
+  description = "Testing TGW connectivity with Aviatrix Transit"
+
+  vpc_attachments = {
+    vpc-1 = {
+      vpc_id       = module.tgw_attached_vpc_1.vpc_id
+      subnet_ids   = module.tgw_attached_vpc_1.private_subnets
+      dns_support  = true
+      ipv6_support = false
+    }
+    # vpc-2 = {
+    #   vpc_id       = module.tgw_attached_vpc_2.vpc_id
+    #   subnet_ids   = module.tgw_attached_vpc_2.private_subnets
+    #   dns_support  = true
+    #   ipv6_support = false
+    # }
+  }
+
+  # ram_allow_external_principals = true
+  # ram_principals = [307990089504]
+
+  tags = var.tags
+}
+
+module "tgw_attached_vpc_1" {
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "~> 3.0"
+
+  name = "tgw-attached-vpc-1"
+
+  cidr = "10.101.0.0/16"
+
+  azs             = ["us-east-1a", "us-east-1b", "us-east-1c"]
+  private_subnets = ["10.101.1.0/24", "10.101.2.0/24", "10.101.3.0/24"]
+  public_subnets  = ["10.101.10.0/24", "10.101.20.0/24", "10.101.30.0/24"]
+}
+
+# resource "aws_route" "route_to_azure_dynamics" {
+#   route_table_id         = "rtb-048a4dc7ffa79febf" #module.tgw_attached_vpc_1.public_subnets[0].route_table_id
+#   destination_cidr_block = "10.10.0.0/16"
+#   transit_gateway_id     = module.tgw.ec2_transit_gateway_id
+# }
+
+resource "aws_security_group" "tgw_instance_sg_1" {
+
+  name        = "${var.customer_prefix}test-tgw-sg-1"
+  description = "Allow SSH from My IP as well as traffic from Private IP addresses"
+  vpc_id      = module.tgw_attached_vpc_1.vpc_id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [local.my_ip_address]
+  }
+  ingress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = -1
+    cidr_blocks = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = -1
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  tags = merge(var.tags, { Name = "${var.customer_prefix}test-tgw-sg-1" })
+}
+
+resource "aws_instance" "tgw_host_1" {
+  ami                         = var.aws_linux2_on_aws_ec2 ? data.aws_ami.aws-linux2.id : data.aws_ami.aws-ubuntu.id
+  instance_type               = var.aws_test_ec2_size
+  key_name                    = var.aws_key_name
+  vpc_security_group_ids      = [aws_security_group.tgw_instance_sg_1.id]
+  subnet_id                   = module.tgw_attached_vpc_1.public_subnets[0]
+  associate_public_ip_address = true
+  private_ip                  = "10.101.10.5"
+  user_data                   = file(local.aws_user_data_file)
+  tags                        = merge(var.tags, { Name = "${var.customer_prefix}${var.aws_prefix}-${var.aws_region_short}-test-tgw-vm-1" })
+}
+
+output "aws_tgw_instance_public_IP_1" {
+  description = "Public IP address of the first AWS EC2 instance on TGW side"
+  value       = aws_instance.tgw_host_1.public_ip
+}
+
+resource "aws_instance" "tgw_host_2" {
+  ami                         = var.aws_linux2_on_aws_ec2 ? data.aws_ami.aws-linux2.id : data.aws_ami.aws-ubuntu.id
+  instance_type               = var.aws_test_ec2_size
+  key_name                    = var.aws_key_name
+  vpc_security_group_ids      = [aws_security_group.tgw_instance_sg_1.id]
+  subnet_id                   = module.tgw_attached_vpc_1.private_subnets[0]
+  associate_public_ip_address = false
+  private_ip                  = "10.101.1.5"
+  user_data                   = file(local.aws_user_data_file)
+  tags                        = merge(var.tags, { Name = "${var.customer_prefix}${var.aws_prefix}-${var.aws_region_short}-test-tgw-vm-2-priv" })
+}
+
+resource "aws_customer_gateway" "avx_transit" {
+  bgp_asn    = 65001
+  ip_address = module.transit_aws[0].transit_gateway.eip
+  type       = "ipsec.1"
+}
+
+resource "aws_customer_gateway" "avx_transit_ha" {
+  count = var.transit_ha ? 1 : 0
+
+  bgp_asn    = 65001
+  ip_address = module.transit_aws[0].transit_gateway.ha_eip
+  type       = "ipsec.1"
+}
+
+resource "aws_vpn_connection" "vpn_to_avx" {
+  customer_gateway_id   = aws_customer_gateway.avx_transit.id
+  transit_gateway_id    = module.tgw.ec2_transit_gateway_id
+  type                  = aws_customer_gateway.avx_transit.type
+  tunnel1_inside_cidr   = "169.254.101.0/30"
+  tunnel1_preshared_key = "canadiens"
+  tunnel2_inside_cidr   = "169.254.102.0/30"
+  tunnel2_preshared_key = "mapleleafs"
+}
+
+resource "aws_vpn_connection" "vpn_to_avx_ha" {
+  count = var.transit_ha ? 1 : 0
+
+  customer_gateway_id   = aws_customer_gateway.avx_transit_ha[0].id
+  transit_gateway_id    = module.tgw.ec2_transit_gateway_id
+  type                  = aws_customer_gateway.avx_transit.type
+  tunnel1_inside_cidr   = "169.254.103.0/30"
+  tunnel1_preshared_key = "senators"
+  tunnel2_inside_cidr   = "169.254.104.0/30"
+  tunnel2_preshared_key = "nordiques"
+}
+
+
+# Create an Aviatrix Transit External Device Connection to TGW Tunnel 1 (VPN 1 in case of HA)
+resource "aviatrix_transit_external_device_conn" "to_tgw_1" {
+
+  vpc_id                    = module.transit_aws[0].vpc.vpc_id
+  connection_name           = "to-tgw-1"
+  gw_name                   = module.transit_aws[0].transit_gateway.gw_name
+  connection_type           = "bgp"
+  tunnel_protocol           = "IPsec"
+  bgp_local_as_num          = "65001"
+  bgp_remote_as_num         = "64512"
+  remote_gateway_ip         = aws_vpn_connection.vpn_to_avx.tunnel1_address
+  pre_shared_key            = "canadiens"
+  local_tunnel_cidr         = var.transit_ha ? "169.254.101.2/30,169.254.201.2/30" : "169.254.101.2/30"
+  remote_tunnel_cidr        = var.transit_ha ? "169.254.101.1/30,169.254.201.1/30" : "169.254.101.1/30"
+  ha_enabled                = var.transit_ha
+  backup_bgp_remote_as_num  = var.transit_ha ? "64512" : null
+  backup_remote_gateway_ip  = var.transit_ha ? aws_vpn_connection.vpn_to_avx.tunnel2_address : null
+  backup_pre_shared_key     = var.transit_ha ? "mapleleafs" : null
+  backup_local_tunnel_cidr  = var.transit_ha ? "169.254.102.2/30,169.254.202.2/30" : null
+  backup_remote_tunnel_cidr = var.transit_ha ? "169.254.102.1/30,169.254.202.1/30" : null
+}
+
+# Create Aviatrix Segmentation Network Domain Associations
+resource "aviatrix_segmentation_network_domain_association" "tgw_1_segmentation" {
+
+  transit_gateway_name = module.transit_aws[0].transit_gateway.gw_name
+  network_domain_name  = aviatrix_segmentation_network_domain.seg_dom[0].domain_name
+  attachment_name      = aviatrix_transit_external_device_conn.to_tgw_1.connection_name
+}
+
+
+# Create an Aviatrix Transit External Device Connection to TGW Tunnel 2 (VPN 2 in case of HA)
+resource "aviatrix_transit_external_device_conn" "to_tgw_2" {
+
+  vpc_id                    = module.transit_aws[0].vpc.vpc_id
+  connection_name           = "to-tgw-2"
+  gw_name                   = module.transit_aws[0].transit_gateway.gw_name
+  connection_type           = "bgp"
+  tunnel_protocol           = "IPsec"
+  bgp_local_as_num          = "65001"
+  bgp_remote_as_num         = "64512"
+  remote_gateway_ip         = var.transit_ha ? aws_vpn_connection.vpn_to_avx_ha[0].tunnel1_address : aws_vpn_connection.vpn_to_avx.tunnel2_address
+  pre_shared_key            = var.transit_ha ? "senators" : "mapleleafs"
+  local_tunnel_cidr         = var.transit_ha ? "169.254.203.2/30,169.254.103.2/30" : "169.254.102.2/30"
+  remote_tunnel_cidr        = var.transit_ha ? "169.254.203.1/30,169.254.103.1/30" : "169.254.102.1/30"
+  ha_enabled                = var.transit_ha
+  backup_bgp_remote_as_num  = var.transit_ha ? "64512" : null
+  backup_remote_gateway_ip  = var.transit_ha ? aws_vpn_connection.vpn_to_avx_ha[0].tunnel2_address : null
+  backup_pre_shared_key     = var.transit_ha ? "nordiques" : null
+  backup_local_tunnel_cidr  = var.transit_ha ? "169.254.204.2/30,169.254.104.2/30" : null
+  backup_remote_tunnel_cidr = var.transit_ha ? "169.254.204.1/30,169.254.104.1/30" : null
+}
+
+# Create Aviatrix Segmentation Network Domain Associations
+resource "aviatrix_segmentation_network_domain_association" "tgw_2_segmentation" {
+
+  transit_gateway_name = module.transit_aws[0].transit_gateway.gw_name
+  network_domain_name  = aviatrix_segmentation_network_domain.seg_dom[0].domain_name
+  attachment_name      = aviatrix_transit_external_device_conn.to_tgw_2.connection_name
+}
+
+
+
+
+
+
+
+# #Insert routing to external connections based on Azure region
+# data "azurerm_network_service_tags" "west_europe" {
+#   location        = "westeurope"
+#   service         = "AzureCloud"
+#   location_filter = "westeurope"
+# }
+
+# #Insert routing to external connections based on Azure region
+# data "azurerm_network_service_tags" "north_europe" {
+#   location        = "northeurope"
+#   service         = "AzureCloud"
+#   location_filter = "northeurope"
+# }
+
+
+
+
+# module "tgw_attached_vpc_2" {
+#   source  = "terraform-aws-modules/vpc/aws"
+#   version = "~> 3.0"
+
+#   name = "tgw-attached-vpc-2"
+
+#   cidr = "10.102.0.0/16"
+
+#   azs             = ["us-east-1a", "us-east-1b", "us-east-1c"]
+#   private_subnets = ["10.102.1.0/24", "10.102.2.0/24", "10.102.3.0/24"]
+#   public_subnets  = ["10.102.10.0/24", "10.102.20.0/24", "10.102.30.0/24"]
+
+#   #   enable_ipv6                                    = true
+#   #   private_subnet_assign_ipv6_address_on_creation = true
+#   #   private_subnet_ipv6_prefixes                   = [0, 1, 2]
+# }
+
+# # resource "aws_route" "vpc_2_to_vpc_1_route" {
+# #   route_table_id         = module.tgw_attached_vpc_2.public_subnets[0].route_table_id
+# #   destination_cidr_block = "10.101.0.0/16"
+# #   transit_gateway_id     = module.tgw.ec2_transit_gateway_id
+# # }
+
+# resource "aws_security_group" "tgw_instance_sg_2" {
+
+#   name        = "${var.customer_prefix}test-tgw-sg-2"
+#   description = "Allow SSH from My IP as well as traffic from Private IP addresses"
+#   vpc_id      = module.tgw_attached_vpc_2.vpc_id
+
+#   ingress {
+#     from_port   = 22
+#     to_port     = 22
+#     protocol    = "tcp"
+#     cidr_blocks = [local.my_ip_address]
+#   }
+#   ingress {
+#     from_port   = 0
+#     to_port     = 0
+#     protocol    = -1
+#     cidr_blocks = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+#   }
+#   egress {
+#     from_port   = 0
+#     to_port     = 0
+#     protocol    = -1
+#     cidr_blocks = ["0.0.0.0/0"]
+#   }
+#   tags = merge(var.tags, { Name = "${var.customer_prefix}test-tgw-sg-2" })
+# }
+
+# resource "aws_instance" "tgw_host_2" {
+#   ami                         = var.aws_linux2_on_aws_ec2 ? data.aws_ami.aws-linux2.id : data.aws_ami.aws-ubuntu.id
+#   instance_type               = var.aws_test_ec2_size
+#   key_name                    = var.aws_key_name
+#   vpc_security_group_ids      = [aws_security_group.tgw_instance_sg_2.id]
+#   subnet_id                   = module.tgw_attached_vpc_2.public_subnets[0]
+#   associate_public_ip_address = true
+#   private_ip                  = "10.102.10.5"
+#   user_data                   = file(local.aws_user_data_file)
+#   tags                        = merge(var.tags, { Name = "${var.customer_prefix}${var.aws_prefix}-${var.aws_region_short}-test-tgw-vm-2" })
+# }
+
+# output "aws_tgw_instance_public_IP_2" {
+#   description = "Public IP address of the first AWS EC2 instance on TGW side"
+#   value       = aws_instance.tgw_host_2.public_ip
+# }

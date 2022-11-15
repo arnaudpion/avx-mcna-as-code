@@ -225,19 +225,20 @@ module "spoke_azure" {
 
   count = var.deploy_azure ? length(var.spoke_name_list) : 0
 
-  cloud          = "Azure"
-  name           = "${var.customer_prefix}${var.azure_prefix}-${var.azure_region_short}-${var.spoke_name_list[count.index]}-spoke"
-  cidr           = var.azure_spoke_cidr_list[count.index]
-  region         = var.azure_region
-  account        = var.azure_account_name
-  resource_group = var.azure_resource_group
-  instance_size  = var.azure_spoke_gateway_size
-  transit_gw     = module.transit_azure[0].transit_gateway.gw_name
-  ha_gw          = count.index == 0 ? anytrue([var.spoke_ha, var.spoke_ha_first_vpc_only]) : var.spoke_ha
-  insane_mode    = var.hpe
-  single_az_ha   = false
-  network_domain = var.segmentation ? aviatrix_segmentation_network_domain.seg_dom[count.index].domain_name : ""
-  tags           = var.tags
+  cloud                            = "Azure"
+  name                             = "${var.customer_prefix}${var.azure_prefix}-${var.azure_region_short}-${var.spoke_name_list[count.index]}-spoke"
+  cidr                             = var.azure_spoke_cidr_list[count.index]
+  region                           = var.azure_region
+  account                          = var.azure_account_name
+  resource_group                   = var.azure_resource_group
+  instance_size                    = var.azure_spoke_gateway_size
+  transit_gw                       = module.transit_azure[0].transit_gateway.gw_name
+  ha_gw                            = count.index == 0 ? anytrue([var.spoke_ha, var.spoke_ha_first_vpc_only]) : var.spoke_ha
+  insane_mode                      = var.hpe
+  single_az_ha                     = false
+  network_domain                   = var.segmentation ? aviatrix_segmentation_network_domain.seg_dom[count.index].domain_name : ""
+  tags                             = var.tags
+  #included_advertised_spoke_routes = join(",", data.azurerm_network_service_tags.north_europe.ipv4_cidrs) ##!!!## DELETE THIS !!
 }
 
 

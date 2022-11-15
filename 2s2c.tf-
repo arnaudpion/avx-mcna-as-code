@@ -1,0 +1,186 @@
+# S2C Transit Gateways in AWS (bis)
+module "s2c_transit_aws_bis" {
+  source  = "terraform-aviatrix-modules/mc-transit/aviatrix"
+  version = "2.1.4"
+
+  count = alltrue([var.deploy_aws, var.deploy_azure, var.enable_s2c_on_aws]) ? 1 : 0
+
+  cloud                         = "AWS"
+  name                          = "${var.customer_prefix}onprem-bis"
+  cidr                          = "172.17.0.0/23"
+  region                        = var.aws_s2c_region
+  account                       = var.aws_account_name
+  instance_size                 = var.aws_transit_gateway_size
+  ha_gw                         = var.transit_ha
+  insane_mode                   = var.hpe
+  enable_segmentation           = var.segmentation
+  enable_advertise_transit_cidr = true
+  single_az_ha                  = false
+  enable_transit_firenet        = false
+  tags                          = var.tags
+}
+
+# Create an Aviatrix Transit External Device Connection - "Cloud" side
+resource "aviatrix_transit_external_device_conn" "cloud_conn_bis" {
+  count = alltrue([var.deploy_aws, var.deploy_azure, var.enable_s2c_on_aws]) ? 1 : 0
+
+  vpc_id                    = module.transit_azure[0].vpc.vpc_id
+  connection_name           = "to-on-prem-bis"
+  gw_name                   = module.transit_azure[0].transit_gateway.gw_name
+  connection_type           = "bgp"
+  tunnel_protocol           = "IPsec"
+  enable_ikev2              = true
+  bgp_local_as_num          = "65011"
+  bgp_remote_as_num         = "65012"
+  remote_gateway_ip         = module.s2c_transit_aws_bis[count.index].transit_gateway.eip
+  pre_shared_key            = "canadiens"
+  local_tunnel_cidr         = var.transit_ha ? "169.254.100.1/30,169.254.101.1/30" : "169.254.10.1/30"
+  remote_tunnel_cidr        = var.transit_ha ? "169.254.100.2/30,169.254.101.2/30" : "169.254.10.2/30"
+  ha_enabled                = var.transit_ha
+  backup_bgp_remote_as_num  = var.transit_ha ? "65012" : null
+  backup_remote_gateway_ip  = var.transit_ha ? module.s2c_transit_aws_bis[count.index].transit_gateway.ha_eip : null
+  backup_pre_shared_key     = var.transit_ha ? "canadiens" : null
+  backup_local_tunnel_cidr  = var.transit_ha ? "169.254.110.1/30,169.254.111.1/30" : null
+  backup_remote_tunnel_cidr = var.transit_ha ? "169.254.110.2/30,169.254.111.2/30" : null
+}
+
+# Create an Aviatrix Transit External Device Connection - "On-Prem" side
+resource "aviatrix_transit_external_device_conn" "onprem_conn_bis" {
+  count = alltrue([var.deploy_aws, var.deploy_azure, var.enable_s2c_on_aws]) ? 1 : 0
+
+  vpc_id                    = module.s2c_transit_aws_bis[0].vpc.vpc_id
+  connection_name           = "to-the-cloud-bis"
+  gw_name                   = module.s2c_transit_aws_bis[0].transit_gateway.gw_name
+  connection_type           = "bgp"
+  tunnel_protocol           = "IPsec"
+  enable_ikev2              = true
+  bgp_local_as_num          = "65012"
+  bgp_remote_as_num         = "65011"
+  remote_gateway_ip         = module.transit_azure[0].transit_gateway.eip
+  pre_shared_key            = "canadiens"
+  local_tunnel_cidr         = var.transit_ha ? "169.254.100.2/30,169.254.110.2/30" : "169.254.10.2/30"
+  remote_tunnel_cidr        = var.transit_ha ? "169.254.100.1/30,169.254.110.1/30" : "169.254.10.1/30"
+  ha_enabled                = var.transit_ha
+  backup_bgp_remote_as_num  = var.transit_ha ? "65011" : null
+  backup_remote_gateway_ip  = var.transit_ha ? module.transit_azure[0].transit_gateway.ha_eip : null
+  backup_pre_shared_key     = var.transit_ha ? "canadiens" : null
+  backup_local_tunnel_cidr  = var.transit_ha ? "169.254.101.2/30,169.254.111.2/30" : null
+  backup_remote_tunnel_cidr = var.transit_ha ? "169.254.101.1/30,169.254.111.1/30" : null
+}
+
+# Create Aviatrix Segmentation Network Domain Associations for S2C
+resource "aviatrix_segmentation_network_domain_association" "s2c-cloud-segmentation-bis" {
+  count = alltrue([var.deploy_aws, var.deploy_azure, var.enable_s2c_on_aws, var.segmentation]) ? 1 : 0
+
+  transit_gateway_name = module.transit_azure[0].transit_gateway.gw_name
+  network_domain_name  = aviatrix_segmentation_network_domain.seg_dom[0].domain_name
+  attachment_name      = "to-on-prem-bis"
+
+  depends_on = [aviatrix_transit_external_device_conn.cloud_conn_bis]
+}
+
+resource "aviatrix_segmentation_network_domain_association" "s2c-on-prem-segmentation-bis" {
+  count = alltrue([var.deploy_aws, var.enable_s2c_on_aws, var.segmentation]) ? 1 : 0
+
+  transit_gateway_name = module.s2c_transit_aws_bis[0].transit_gateway.gw_name
+  network_domain_name  = aviatrix_segmentation_network_domain.seg_dom[0].domain_name
+  attachment_name      = "to-the-cloud-bis"
+
+  depends_on = [aviatrix_transit_external_device_conn.onprem_conn_bis]
+}
+
+# Security Group for EC2 Instance in S2C VPCs in AWS
+resource "aws_security_group" "s2c_instance_sg_bis" {
+  provider = aws.s2c
+  count    = alltrue([var.deploy_aws, var.deploy_azure, var.enable_s2c_on_aws]) ? 1 : 0
+
+  name        = "${var.customer_prefix}onprem-sg-bis"
+  description = "Allow SSH from My IP as well as traffic from Private IP addresses"
+  vpc_id      = module.s2c_transit_aws_bis[count.index].vpc.vpc_id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [local.my_ip_address]
+  }
+  ingress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = -1
+    cidr_blocks = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = -1
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  tags = merge(var.tags, { Name = "${var.customer_prefix}onprem-sg-bis" })
+}
+
+# Test EC2 instance for on-prem
+resource "aws_instance" "s2c_aws_ec2_bis" {
+  provider = aws.s2c
+  count    = alltrue([var.deploy_aws, var.deploy_azure, var.enable_s2c_on_aws]) ? 1 : 0
+
+  ami                    = data.aws_ami.aws-linux2_s2c.id
+  instance_type          = var.aws_test_ec2_size
+  key_name               = var.aws_key_name
+  vpc_security_group_ids = [aws_security_group.s2c_instance_sg_bis[count.index].id]
+  subnet_id              = module.s2c_transit_aws_bis[count.index].vpc.public_subnets[0].subnet_id
+  #private_ip             = anytrue([cidrhost(module.s2c_transit_aws[0].vpc.public_subnets[0].cidr, var.aws_test_ec2_hostnum) == module.s2c_transit_aws[0].transit_gateway.private_ip, cidrhost(module.s2c_transit_aws[0].vpc.public_subnets[0].cidr, var.aws_test_ec2_hostnum) == module.s2c_transit_aws[0].transit_gateway.ha_private_ip]) ? cidrhost(module.s2c_transit_aws[0].vpc.public_subnets[0].cidr, var.aws_test_ec2_hostnum + 5) : cidrhost(module.s2c_transit_aws[0].vpc.public_subnets[0].cidr, var.aws_test_ec2_hostnum)
+  private_ip = cidrhost(module.s2c_transit_aws_bis[0].vpc.public_subnets[0].cidr, var.aws_test_ec2_hostnum) == module.s2c_transit_aws_bis[0].transit_gateway.private_ip ? cidrhost(module.s2c_transit_aws_bis[0].vpc.public_subnets[0].cidr, var.aws_test_ec2_hostnum + 5) : cidrhost(module.s2c_transit_aws_bis[0].vpc.public_subnets[0].cidr, var.aws_test_ec2_hostnum)
+  user_data  = file(var.aws_linux2_user_data_file)
+  tags       = merge(var.tags, { Name = "${var.customer_prefix}onprem-vm-bis" })
+}
+
+/*
+# Create an Aviatrix Transit External Device Connection - "OnPrem1" side
+resource "aviatrix_transit_external_device_conn" "onprem1" {
+  count = alltrue([var.deploy_aws, var.deploy_azure, var.enable_s2c_on_aws]) ? 1 : 0
+
+  vpc_id                    = module.s2c_transit_aws[0].vpc.vpc_id
+  connection_name           = "onprem1"
+  gw_name                   = module.s2c_transit_aws[0].transit_gateway.gw_name
+  connection_type           = "bgp"
+  tunnel_protocol           = "IPsec"
+  enable_ikev2              = true
+  bgp_local_as_num          = "65002"
+  bgp_remote_as_num         = "65012"
+  remote_gateway_ip         = module.s2c_transit_aws_bis[count.index].transit_gateway.eip
+  pre_shared_key            = "canadiens"
+  local_tunnel_cidr         = var.transit_ha ? "169.254.200.1/30,169.254.201.1/30" : "169.254.20.1/30"
+  remote_tunnel_cidr        = var.transit_ha ? "169.254.200.2/30,169.254.201.2/30" : "169.254.20.2/30"
+  ha_enabled                = var.transit_ha
+  backup_bgp_remote_as_num  = var.transit_ha ? "65012" : null
+  backup_remote_gateway_ip  = var.transit_ha ? module.s2c_transit_aws_bis[count.index].transit_gateway.ha_eip : null
+  backup_pre_shared_key     = var.transit_ha ? "canadiens" : null
+  backup_local_tunnel_cidr  = var.transit_ha ? "169.254.210.1/30,169.254.211.1/30" : null
+  backup_remote_tunnel_cidr = var.transit_ha ? "169.254.210.2/30,169.254.211.2/30" : null
+}
+
+# Create an Aviatrix Transit External Device Connection - "OnPrem2" side
+resource "aviatrix_transit_external_device_conn" "onprem2" {
+  count = alltrue([var.deploy_aws, var.deploy_azure, var.enable_s2c_on_aws]) ? 1 : 0
+
+  vpc_id                    = module.s2c_transit_aws_bis[0].vpc.vpc_id
+  connection_name           = "onprem2"
+  gw_name                   = module.s2c_transit_aws_bis[0].transit_gateway.gw_name
+  connection_type           = "bgp"
+  tunnel_protocol           = "IPsec"
+  enable_ikev2              = true
+  bgp_local_as_num          = "65012"
+  bgp_remote_as_num         = "65002"
+  remote_gateway_ip         = module.s2c_transit_aws[0].transit_gateway.eip
+  pre_shared_key            = "canadiens"
+  local_tunnel_cidr         = var.transit_ha ? "169.254.200.2/30,169.254.210.2/30" : "169.254.20.2/30"
+  remote_tunnel_cidr        = var.transit_ha ? "169.254.200.1/30,169.254.210.1/30" : "169.254.20.1/30"
+  ha_enabled                = var.transit_ha
+  backup_bgp_remote_as_num  = var.transit_ha ? "65002" : null
+  backup_remote_gateway_ip  = var.transit_ha ? module.s2c_transit_aws[0].transit_gateway.ha_eip : null
+  backup_pre_shared_key     = var.transit_ha ? "canadiens" : null
+  backup_local_tunnel_cidr  = var.transit_ha ? "169.254.201.2/30,169.254.211.2/30" : null
+  backup_remote_tunnel_cidr = var.transit_ha ? "169.254.201.1/30,169.254.211.1/30" : null
+}
+*/
